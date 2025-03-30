@@ -1,0 +1,281 @@
+TeleDoc AI – Backend Requirements Document
+1. Project Overview
+TeleDoc AI is an AI-powered telemedicine platform enabling patients to upload skin images and vital signs for preliminary diagnostic analysis, connect with doctors for virtual consultations, and track health progress over time. The system leverages AI models to detect skin conditions and vital sign anomalies, providing actionable insights and facilitating end-to-end care.
+This document outlines the backend requirements for a prototype to support a Global Talent Visa application, while establishing a production-ready architecture for future commercialization as a telemedicine company. The focus is on a scalable, extensible feature set with robust AI integration.
+2. Core Features
+Module
+Description
+Image & Vitals Upload
+Patients upload skin images (e.g., rashes) and/or text-based vitals (e.g., "HR 120, Temp 38°C") via a React frontend.
+AI Diagnosis
+AI models analyze uploads to provide preliminary skin condition detection and vital sign alerts.
+Consultation Booking
+Patients request virtual consultations with a mock doctor (expandable to a real doctor network).
+Doctor Notes
+Doctors submit follow-up notes, including diagnosis, prescriptions, and next steps.
+Health Tracking
+Patients submit updates to monitor treatment progress, with optional AI trend analysis.
+
+3. System Architecture
+Component
+Technology
+Backend
+Node.js with Express.js
+Database
+Supabase PostgreSQL
+File Storage
+Supabase Storage (bucket: uploads/)
+AI Scripts
+Python (Torch, Transformers, Pillow)
+Frontend
+React (client-side UI)
+Auth (Future)
+Supabase Auth
+
+4. Functional Workflow
+4.1 Patient Submission
+Input:
+Image file (.jpg/.png, ≤5MB).
+Vitals (text, e.g., "HR 120, Temp 38°C"), optional.
+Process:
+React frontend sends image to Supabase Storage (uploads/ bucket).
+Metadata (image URL, vitals) inserted into the submissions table.
+Python scripts (analyze_image.py, analyze_vitals.py) run AI analysis.
+Results (condition, confidence, alerts) update the submission record.
+Response:
+Json: { "id": "uuid", "condition": "rash",  "confidence": 0.85, "vital_alerts": "high HR"}
+4.2 AI Analysis
+Models:
+Image: Vision Transformer (google/vit-base-patch16-224).
+Vitals: Bio-RoBERTa (biomed-roberta-base).
+Process:
+Preprocessing: Resize images to 224x224, normalize; tokenize vitals text.
+Inference: ViT detects skin conditions (e.g., "eczema, 92%"); Bio-RoBERTa flags vital anomalies (e.g., "high HR").
+Combined logic: If both present, prioritize urgent alerts (e.g., "rash + fever = possible infection").
+Output:
+Json: {"condition": "eczema", "confidence": 0.92, "vital_alerts": null}
+4.3 Doctor Consultation
+Input: { "submission_id": "uuid" }
+Process:
+Assigns a mock doctor (e.g., "Dr. A")—future: match by specialty/availability.
+Generates a mock Zoom link (e.g., "https://zoom.us/j/123456789").
+Inserts into consults table.
+Response:
+Json: {  "doctor": "Dr. A", "link": "https://zoom.us/j/123456789","status": "pending"}
+4.4 Post-Consultation Follow-Up
+Input:
+Json {"submission_id": "uuid",  "diagnosis": "eczema", "prescription": "hydrocortisone", "next_step": "recheck in 7 days" }
+Process: Updates consults entry with doctor notes.
+Response: Json - { "summary": "Eczema, hydrocortisone, recheck in 7 days"}
+4.5 Patient Health Tracking
+Input: Json { "submission_id": "uuid", "update": "Rash improved"}
+Process:
+Inserts into tracking table.
+Mock AI trend analysis for demo (e.g., "Improving" if positive)—future: real scoring.
+Response:
+json
+{"trend": "Improving" }
+5. API Endpoints
+Endpoint
+Method
+Description
+/upload
+POST
+Upload image + vitals, run AI analysis
+/results/:id
+GET
+Retrieve analysis result and consult link
+/consult
+POST
+Request a consult for a submission
+/followup
+POST
+Doctor adds diagnosis, prescription, next step
+/track
+POST
+Patient submits update, returns trend
+
+6. Database Schema
+submissions
+Field
+Type
+Description
+id
+UUID
+Primary key
+image_url
+TEXT
+Supabase Storage URL
+vitals
+TEXT
+E.g., "HR 120, Temp 38"
+condition
+TEXT
+AI-detected skin condition
+confidence
+FLOAT
+Confidence score (0–1)
+vital_alerts
+TEXT
+AI-detected vital issues
+created_at
+TIMESTAMP
+Submission time
+
+consults
+Field
+Type
+Description
+id
+UUID
+Primary key
+submission_id
+UUID
+FK to submissions
+doctor_id
+TEXT
+Mock doctor ID (future: UUID)
+zoom_link
+TEXT
+Virtual consultation link
+diagnosis
+TEXT
+Doctor's final diagnosis
+prescription
+TEXT
+Recommended medication
+next_step
+TEXT
+Follow-up instructions
+status
+TEXT
+E.g., "pending", "complete"
+
+tracking
+Field
+Type
+Description
+id
+UUID
+Primary key
+submission_id
+UUID
+FK to submissions
+update
+TEXT
+Patient-reported progress
+trend
+TEXT
+Trend analysis result
+updated_at
+TIMESTAMP
+Timestamp
+
+7. Non-Functional Requirements
+Aspect
+Requirement
+Performance
+/upload ≤5s, /consult ≤2s, /track ≤3s
+Scalability
+Supabase Free tier (500MB) for demo; Pro for growth
+Security
+Public uploads/ bucket for demo; private + auth later
+Extensibility
+Supports auth, real doctors, payments, EHR sync
+Reliability
+90% uptime for demo; 99.9% with Supabase Pro
+
+8. Tech Stack
+Component
+Technology
+Backend
+Node.js, Express.js
+Storage
+Supabase Storage
+Database
+Supabase PostgreSQL
+AI Analysis
+Python (Torch, Transformers, Pillow)
+Frontend
+React (client-side UI)
+
+9. Dependencies
+Node.js: npm install express multer dotenv @supabase/supabase-js@2.x
+Python: pip install torch transformers pillow
+React: npm install axios (for API calls)—assumes basic React setup.
+10. Actors and Use Cases
+System Actors
+Actor
+Description
+Patient
+Uploads data, views diagnosis, requests consults, tracks progress
+Doctor
+Reviews submissions, adds notes, manages consults
+AI Engine
+Analyzes images/vitals via Python scripts
+System Admin (Future)
+Manages doctors, monitors system (post-demo)
+
+Use Cases
+Use Case
+Description
+Upload Submission
+Patient uploads skin image/vitals via React
+Analyze Data (AI)
+AI processes uploads, returns diagnosis/alerts
+View Diagnosis Result
+Patient views results via /results/:id
+Request Consultation
+Patient books consult via /consult
+Assign Doctor & Link
+System assigns mock doctor, generates Zoom link
+Add Follow-Up Notes
+Doctor submits diagnosis/prescription via /followup
+Submit Health Update
+Patient adds progress via /track
+Analyze Health Trend
+System evaluates trends from updates
+
+11. Objects and Classes
+Core Classes
+Class
+Responsibility
+Submission
+Manages patient-uploaded data and AI results
+AIEngine
+Executes AI analysis via Python scripts
+Consult
+Handles doctor assignments and follow-up notes
+Doctor
+Represents a doctor (mock for demo)
+PatientUpdate
+Stores patient progress updates
+HealthTrend
+Analyzes trends from updates
+
+Attributes and Methods
+Submission
+Attributes: id, imageUrl, vitals, condition, confidence, vitalAlerts, createdAt
+Methods: analyzeImage(), analyzeVitals(), updateDiagnosis()
+AIEngine
+Attributes: modelType (ViT/Bio-RoBERTa), scriptPath
+Methods: runImageAnalysis(imagePath), runVitalsAnalysis(vitalsText)
+Consult
+Attributes: id, submissionId, doctorId, zoomLink, diagnosis, prescription, nextStep, status
+Methods: assignDoctor(), addFollowUp(diagnosis, prescription, nextStep)
+Doctor
+Attributes: id, name, specialty, availability
+Methods: acceptConsult(submissionId), submitDiagnosis(consultId, notes)
+PatientUpdate
+Attributes: id, submissionId, updateText, timestamp
+Methods: analyzeTrend()
+HealthTrend
+Attributes: submissionId, trendStatus (e.g., "Improving")
+Methods: evaluateUpdates(updates[])
+12. Additional Considerations
+Error Handling:
+400: Invalid input (e.g., oversized image).
+404: Submission/consult not found.
+500: Server/AI failure.
+
+pillow==10.0.0
