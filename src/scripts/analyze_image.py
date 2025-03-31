@@ -1,63 +1,62 @@
 #!/usr/bin/env python
 import sys
 import json
-import random
 from PIL import Image
+from transformers import ViTImageProcessor, ViTForImageClassification
+import torch
+
+# Load fine-tuned model and processor (to be trained and saved as "AvelonSkin-Model-1")
+processor = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
+model = ViTForImageClassification.from_pretrained('google/vit-base-patch16-224')
+# Uncomment after fine-tuning:
+# model = ViTForImageClassification.from_pretrained('./avelonskin-model-1')
 
 def analyze_image(image_path):
     """
-    Mock image analysis function that simulates AI detection of skin conditions.
-    For a real implementation, this would use a pretrained Vision Transformer model.
-    
+    Analyzes a skin image using AvelonSkin-Model-1 (fine-tuned ViT) to detect conditions.
+
     Args:
         image_path: Path to the image file
-        
+
     Returns:
         Dictionary with condition and confidence score
     """
     try:
-        # In a real implementation, this would:
-        # 1. Load the image
-        # 2. Preprocess (resize to 224x224, normalize)
-        # 3. Run through the ViT model
-        # 4. Return top prediction
-        
-        # Mock implementation for prototype
-        image = Image.open(image_path)
-        
-        # Mock skin conditions and random confidence scores
-        conditions = [
-            "eczema",
-            "psoriasis", 
-            "acne",
-            "rosacea",
-            "dermatitis",
-            "melanoma",
-            "rash"
-        ]
-        
-        condition = random.choice(conditions)
-        confidence = round(random.uniform(0.7, 0.98), 2)
-        
+        # Load and preprocess image
+        image = Image.open(image_path).convert('RGB')
+        inputs = processor(images=image, return_tensors="pt")
+
+        # Run inference
+        with torch.no_grad():
+            outputs = model(**inputs)
+            logits = outputs.logits
+            probabilities = torch.softmax(logits, dim=1)
+
+        # Get top prediction
+        confidence, predicted_idx = torch.max(probabilities, dim=1)
+        confidence = confidence.item()
+
+        # Define skin condition labels (update after fine-tuning with your dataset)
+        conditions = ["eczema", "psoriasis", "acne", "rosacea", "dermatitis", "melanoma", "rash"]
+        condition = conditions[predicted_idx.item()]  # Map to your fine-tuned labels
+
         return {
             "condition": condition,
-            "confidence": confidence
+            "confidence": round(confidence, 2)
         }
-        
+
     except Exception as e:
         print(f"Error analyzing image: {str(e)}", file=sys.stderr)
         return {
             "condition": "unknown",
-            "confidence": 0
+            "confidence": 0.0
         }
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Usage: python analyze_image.py <image_path>")
         sys.exit(1)
-        
+
     image_path = sys.argv[1]
     result = analyze_image(image_path)
-    
-    # Print JSON result to stdout for the Node.js process to capture
-    print(json.dumps(result)) 
+    print(json.dumps(result))
